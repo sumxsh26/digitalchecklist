@@ -209,12 +209,83 @@
   <div style="clear:both"></div>
 
   <footer>
-    General guidance only, accurate as of mid-2026. Rules, fees and exchange rates change — verify on gov.uk and consider an OISC-regulated adviser for advice specific to your situation. Checkbox progress and added tasks are stored and visible to anyone with this link.
+    General guidance only, accurate as of mid-2026. Rules, fees and exchange rates change — verify on gov.uk and consider an OISC-regulated adviser for advice specific to your situation. Checkbox progress and added tasks are stored online (JSONBin) and visible to anyone who opens this file.
   </footer>
 
 </div>
 
 <script>
+// ---------------------------------------------------------------------------
+// STORAGE SETUP (required for saving/syncing to work) — using JSONBin.io
+// ---------------------------------------------------------------------------
+// JSONBin.io is a free hosted JSON store you talk to with plain fetch() —
+// no SDK, no Firebase account, no server to run.
+//
+// 1. Go to https://jsonbin.io and create a free account.
+// 2. Go to "API Keys" in your dashboard, copy your X-Master-Key (or create
+//    an X-Access-Key with read/write scoped to one bin — more secure).
+// 3. Create a new bin (Create Bin) with this starting content: {}
+//    Copy the Bin ID it gives you (looks like 65f1a2b3c4d5e6f7a8b9c0d1).
+// 4. Paste your API key and Bin ID into the two constants below.
+// 5. Save this file and just open it in a browser — no server needed.
+//    Anyone who opens the same file (with the same keys) reads/writes the
+//    same bin, so checked items and added tasks sync between you.
+// ---------------------------------------------------------------------------
+const JSONBIN_API_KEY = "$2a$10$SZ2X.2hVgbvyh96SkroeWewLFlN5cFt0XE9WYtUJqSROZ7wTR9rSK";
+const JSONBIN_BIN_ID  = "6a43df52f5f4af5e294840f2";
+const JSONBIN_BASE = "https://api.jsonbin.io/v3/b/" + JSONBIN_BIN_ID;
+
+// All checklist state lives as one JSON object in the bin, e.g.:
+// { "check:elig-1": "1", "custom:actions": "[{...}]" }
+// We cache it in memory and read/write the whole object each time, since
+// JSONBin charges per-request, not per-key.
+let _binCache = null;
+
+async function _loadBin() {
+  if (_binCache) return _binCache;
+  const res = await fetch(JSONBIN_BASE + "/latest", {
+    headers: { "X-Master-Key": JSONBIN_API_KEY }
+  });
+  if (!res.ok) throw new Error("JSONBin load failed: " + res.status);
+  const json = await res.json();
+  _binCache = json.record || {};
+  return _binCache;
+}
+
+async function _saveBin() {
+  const res = await fetch(JSONBIN_BASE, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": JSONBIN_API_KEY
+    },
+    body: JSON.stringify(_binCache)
+  });
+  if (!res.ok) throw new Error("JSONBin save failed: " + res.status);
+}
+
+// Drop-in replacement for the old window.storage API, backed by JSONBin.
+const storage = {
+  async get(key) {
+    const data = await _loadBin();
+    if (!(key in data)) throw new Error("not found");
+    return { key, value: data[key] };
+  },
+  async set(key, value) {
+    const data = await _loadBin();
+    data[key] = value;
+    await _saveBin();
+    return { key, value };
+  },
+  async delete(key) {
+    const data = await _loadBin();
+    delete data[key];
+    await _saveBin();
+    return { key, deleted: true };
+  }
+};
+window.storage = storage; // keep the rest of the app's code unchanged
+
 const baseData = {
   eligibility: [
     { id: "elig-1", text: "Husband holds current UK settled status (EUSS) and is living in / returning to the UK.", who: "husband" },
