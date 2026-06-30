@@ -65,7 +65,13 @@
   .tag.husband { background: var(--husband); color: #fff; }
   .tag.wife { background: var(--wife); color: #fff; }
   .tag.both { background: var(--both); color: #fff; }
+  .tag.custom { background: var(--accent); color: #fff; }
   .note { font-size: 11.5px; color: var(--grey); display: block; margin-top: 2px; }
+  .del-btn {
+    background: none; border: none; color: var(--grey); cursor: pointer;
+    font-size: 15px; line-height: 1; padding: 2px 4px; flex-shrink: 0; align-self: flex-start;
+  }
+  .del-btn:hover { color: #b33; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
   th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
   th { background: var(--accent); color: #fff; font-weight: 700; font-size: 12px; }
@@ -77,6 +83,22 @@
     border-radius: 6px; padding: 4px 10px; cursor: pointer; float: right;
   }
   .reset-btn:hover { background: #f0f0ee; }
+  .add-row {
+    display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .add-row input[type="text"] {
+    flex: 1; min-width: 160px; padding: 6px 9px; border: 1px solid var(--line);
+    border-radius: 6px; font-size: 13px; font-family: inherit;
+  }
+  .add-row select {
+    padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit;
+  }
+  .add-row button {
+    padding: 6px 12px; border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  .add-row button:hover { opacity: .9; }
+  .save-status { font-size: 11px; color: var(--grey); min-height: 14px; margin-top: 4px; }
   footer { font-size: 11px; color: var(--grey); margin-top: 30px; border-top: 1px solid var(--line); padding-top: 12px; }
 </style>
 </head>
@@ -101,6 +123,15 @@
     <span class="progress-label">0 / 0</span>
   </div>
   <ul class="checklist" id="list-eligibility"></ul>
+  <div class="add-row" data-section="eligibility">
+    <input type="text" placeholder="Add a new item…" class="new-task-text">
+    <select class="new-task-who">
+      <option value="husband">Husband</option>
+      <option value="wife">Wife</option>
+      <option value="both">Both</option>
+    </select>
+    <button class="add-task-btn">Add</button>
+  </div>
 
   <h2>Who does what</h2>
   <p class="lede">As much as possible sits with the husband — he can act from the UK. The wife's in-person tasks are limited to her English test, biometrics, and her own ID documents.</p>
@@ -109,6 +140,15 @@
     <span class="progress-label">0 / 0</span>
   </div>
   <ul class="checklist" id="list-actions"></ul>
+  <div class="add-row" data-section="actions">
+    <input type="text" placeholder="Add a new item…" class="new-task-text">
+    <select class="new-task-who">
+      <option value="husband">Husband</option>
+      <option value="wife">Wife</option>
+      <option value="both">Both</option>
+    </select>
+    <button class="add-task-btn">Add</button>
+  </div>
 
   <h2>Documents needed</h2>
   <div class="progress-row" id="progress-documents">
@@ -116,6 +156,16 @@
     <span class="progress-label">0 / 0</span>
   </div>
   <ul class="checklist" id="list-documents"></ul>
+  <div class="add-row" data-section="documents">
+    <input type="text" placeholder="Add a new item…" class="new-task-text">
+    <select class="new-task-who">
+      <option value="husband">Husband</option>
+      <option value="wife">Wife</option>
+      <option value="both">Both</option>
+    </select>
+    <button class="add-task-btn">Add</button>
+  </div>
+  <div class="save-status" id="save-status"></div>
 
   <h2>Cost breakdown — initial application</h2>
   <p class="small-note">Indicative only — exchange rate used: £1 ≈ S$1.71. Confirm exact fees on gov.uk before paying. Orange rows are optional.</p>
@@ -159,13 +209,13 @@
   <div style="clear:both"></div>
 
   <footer>
-    General guidance only, accurate as of mid-2026. Rules, fees and exchange rates change — verify on gov.uk and consider an OISC-regulated adviser for advice specific to your situation. Checkbox progress is stored and visible to anyone with this link.
+    General guidance only, accurate as of mid-2026. Rules, fees and exchange rates change — verify on gov.uk and consider an OISC-regulated adviser for advice specific to your situation. Checkbox progress and added tasks are stored and visible to anyone with this link.
   </footer>
 
 </div>
 
 <script>
-const data = {
+const baseData = {
   eligibility: [
     { id: "elig-1", text: "Husband holds current UK settled status (EUSS) and is living in / returning to the UK.", who: "husband" },
     { id: "elig-2", text: "Both 18+, married, and relationship is genuine (met in person, ongoing).", who: "both" },
@@ -198,42 +248,65 @@ const data = {
   ]
 };
 
+// `data` mirrors baseData but can have custom items appended at runtime.
+const data = {
+  eligibility: [...baseData.eligibility],
+  actions: [...baseData.actions],
+  documents: [...baseData.documents],
+};
+
 const whoLabel = { husband: "Husband", wife: "Wife", both: "Both" };
+const statusEl = document.getElementById("save-status");
 
-function buildList(sectionKey, items) {
-  const ul = document.getElementById("list-" + sectionKey);
-  items.forEach(item => {
-    const li = document.createElement("li");
-    li.className = item.who;
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.id = item.id;
-    cb.dataset.section = sectionKey;
-    const label = document.createElement("label");
-    label.setAttribute("for", item.id);
-    const span = document.createElement("span");
-    span.className = "item-text";
-    span.textContent = item.text;
-    const tag = document.createElement("span");
-    tag.className = "tag " + item.who;
-    tag.textContent = whoLabel[item.who];
-    label.appendChild(span);
-    label.appendChild(tag);
-    if (item.note) {
-      const note = document.createElement("span");
-      note.className = "note";
-      note.textContent = item.note;
-      label.appendChild(note);
-    }
-    li.appendChild(cb);
-    li.appendChild(label);
-    ul.appendChild(li);
-
-    cb.addEventListener("change", () => onToggle(cb, span));
-  });
+function flashStatus(msg, isError) {
+  statusEl.textContent = msg;
+  statusEl.style.color = isError ? "#b33" : "var(--grey)";
+  setTimeout(() => { if (statusEl.textContent === msg) statusEl.textContent = ""; }, 2000);
 }
 
-function updateProgress(sectionKey, items) {
+function renderItem(sectionKey, item) {
+  const ul = document.getElementById("list-" + sectionKey);
+  const li = document.createElement("li");
+  li.className = item.who;
+  li.id = "li-" + item.id;
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.id = item.id;
+  cb.dataset.section = sectionKey;
+  const label = document.createElement("label");
+  label.setAttribute("for", item.id);
+  const span = document.createElement("span");
+  span.className = "item-text";
+  span.textContent = item.text;
+  const tag = document.createElement("span");
+  tag.className = "tag " + item.who;
+  tag.textContent = whoLabel[item.who];
+  label.appendChild(span);
+  label.appendChild(tag);
+  if (item.note) {
+    const note = document.createElement("span");
+    note.className = "note";
+    note.textContent = item.note;
+    label.appendChild(note);
+  }
+  li.appendChild(cb);
+  li.appendChild(label);
+
+  if (item.custom) {
+    const del = document.createElement("button");
+    del.className = "del-btn";
+    del.title = "Remove item";
+    del.textContent = "✕";
+    del.addEventListener("click", () => removeItem(sectionKey, item.id));
+    li.appendChild(del);
+  }
+
+  ul.appendChild(li);
+  cb.addEventListener("change", () => onToggle(cb, span, sectionKey));
+}
+
+function updateProgress(sectionKey) {
+  const items = data[sectionKey];
   const checked = items.filter(i => {
     const cb = document.getElementById(i.id);
     return cb && cb.checked;
@@ -245,18 +318,65 @@ function updateProgress(sectionKey, items) {
   row.querySelector(".progress-label").textContent = checked + " / " + total;
 }
 
-async function onToggle(cb, span) {
+async function onToggle(cb, span, sectionKey) {
   span.classList.toggle("done", cb.checked);
-  const section = cb.dataset.section;
-  updateProgress(section, data[section]);
+  updateProgress(sectionKey);
   try {
     await window.storage.set("check:" + cb.id, cb.checked ? "1" : "0", true);
   } catch (e) {
     console.error("Storage error", e);
+    flashStatus("Couldn't save — try again", true);
   }
 }
 
-async function loadState() {
+async function saveCustomList(sectionKey) {
+  const customItems = data[sectionKey].filter(i => i.custom);
+  try {
+    await window.storage.set("custom:" + sectionKey, JSON.stringify(customItems), true);
+  } catch (e) {
+    console.error("Storage error", e);
+    flashStatus("Couldn't save new task", true);
+  }
+}
+
+async function addTask(sectionKey, text, who) {
+  const id = "custom-" + sectionKey + "-" + Date.now();
+  const item = { id, text, who, custom: true };
+  data[sectionKey].push(item);
+  renderItem(sectionKey, item);
+  updateProgress(sectionKey);
+  await saveCustomList(sectionKey);
+  flashStatus("Task added");
+}
+
+async function removeItem(sectionKey, id) {
+  data[sectionKey] = data[sectionKey].filter(i => i.id !== id);
+  const li = document.getElementById("li-" + id);
+  if (li) li.remove();
+  updateProgress(sectionKey);
+  try {
+    await window.storage.delete("check:" + id, true);
+  } catch (e) { /* ignore */ }
+  await saveCustomList(sectionKey);
+  flashStatus("Task removed");
+}
+
+async function loadCustomItems(sectionKey) {
+  try {
+    const result = await window.storage.get("custom:" + sectionKey, true);
+    if (result && result.value) {
+      const items = JSON.parse(result.value);
+      items.forEach(item => {
+        data[sectionKey].push(item);
+        renderItem(sectionKey, item);
+      });
+    }
+  } catch (e) {
+    // no custom items saved yet
+  }
+}
+
+async function loadCheckedState() {
   for (const sectionKey of Object.keys(data)) {
     for (const item of data[sectionKey]) {
       try {
@@ -272,17 +392,49 @@ async function loadState() {
         // key not found yet, leave unchecked
       }
     }
-    updateProgress(sectionKey, data[sectionKey]);
+    updateProgress(sectionKey);
   }
 }
 
-buildList("eligibility", data.eligibility);
-buildList("actions", data.actions);
-buildList("documents", data.documents);
-loadState();
+async function init() {
+  // render base items first so order is stable
+  Object.keys(baseData).forEach(sectionKey => {
+    baseData[sectionKey].forEach(item => renderItem(sectionKey, item));
+  });
+  // then load and append any custom items per section
+  for (const sectionKey of Object.keys(data)) {
+    await loadCustomItems(sectionKey);
+  }
+  await loadCheckedState();
+}
+
+init();
+
+document.querySelectorAll(".add-task-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const row = btn.closest(".add-row");
+    const sectionKey = row.dataset.section;
+    const input = row.querySelector(".new-task-text");
+    const select = row.querySelector(".new-task-who");
+    const text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    await addTask(sectionKey, text, select.value);
+    input.value = "";
+    input.focus();
+  });
+});
+
+document.querySelectorAll(".new-task-text").forEach(input => {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.closest(".add-row").querySelector(".add-task-btn").click();
+    }
+  });
+});
 
 document.getElementById("reset-btn").addEventListener("click", async () => {
-  if (!confirm("Reset all checkboxes for everyone with this link?")) return;
+  if (!confirm("Reset all checkboxes for everyone with this link? (Added tasks will not be deleted.)")) return;
   for (const sectionKey of Object.keys(data)) {
     for (const item of data[sectionKey]) {
       const cb = document.getElementById(item.id);
@@ -296,8 +448,9 @@ document.getElementById("reset-btn").addEventListener("click", async () => {
         console.error("Storage error", e);
       }
     }
-    updateProgress(sectionKey, data[sectionKey]);
+    updateProgress(sectionKey);
   }
+  flashStatus("Checkboxes reset");
 });
 </script>
 
